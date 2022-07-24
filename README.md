@@ -1,4 +1,3 @@
-
 # Factory
 
 A programming language with a flow similar to an assembly line, where each machine will take the input of another machine and apply a single transformation to it.
