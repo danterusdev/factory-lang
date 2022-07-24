@@ -116,6 +116,8 @@ def run_transformation(machine, id, inputs):
             return add_(inputs[0], inputs[1])
         case "subtract":
             return subtract_(inputs[0], inputs[1])
+        case "equal":
+            return equal_(inputs[0], inputs[1])
         case "print":
             return print_(inputs[0])
         case "passthrough":
@@ -124,6 +126,8 @@ def run_transformation(machine, id, inputs):
             return repeat_(machine, inputs[0], inputs[1])
         case "repeat_state":
             return repeat_state_(machine, inputs)
+        case "if":
+            return if_(machine, inputs[0], inputs[1])
         case "nothing":
             return nothing_()
         case thing:
@@ -140,6 +144,9 @@ def add_(value1, value2):
 
 def subtract_(value1, value2):
     return value1 - value2
+
+def equal_(value1, value2):
+    return value1 == value2
 
 def print_(value):
     print(value)
@@ -166,6 +173,28 @@ def repeat_(caller_machine, machine, count):
                 machine_inputs_available[machine_new].append([i])
         else:
             machine_inputs_available[machine].append([i])
+
+        output_uses.append(machine)
+
+    list = [machine]
+    if len(machines_inputs[machine]) > 0:
+        list.append(machines_inputs[machine][0])
+
+    dependencies[caller_machine] = list
+
+def if_(caller_machine, condition, machine):
+    if not machine in machines:
+        print("repeat not supported with transformations")
+        exit()
+
+    if not "external" in machine_definitions[machine][3]:
+        print("Machine called via transformation must be external!")
+        exit()
+
+    if condition:
+        if len(machines_inputs[machine]) > 0:
+            for machine_new in machines_inputs[machine]:
+                output_uses.append(machine_new)
 
         output_uses.append(machine)
 
@@ -246,7 +275,7 @@ def run_machine(name):
             else:
                 return
 
-        if name in output_uses or not name in machine_outputs:
+        if name in output_uses or (not name in machine_outputs and not "external" in definition[3]):
             run = False
 
             actual_inputs = [None] * definition[0]
@@ -283,12 +312,6 @@ def run_machine(name):
                         transformation_inputs[index] = actual_inputs[index0]
 
                 is_transformation = True
-
-                #try:
-                    #int(transformation_inputs[1])
-                    #is_transformation = False
-                #except ValueError:
-                    #3pass
 
                 output = None
                 if is_transformation:
@@ -328,11 +351,6 @@ for machine in machines:
     machine_inputs_available[machine] = []
     if "product" in machine_definitions[machine][3]:
         has_product_machine = True
-
-    #if "external" in machine_definitions[machine][3]:
-        #if len(machines_inputs[machine]) > 1:
-            #print("External machines cannot have more than one dependency")
-            #exit()
 
     for input in machines_inputs[machine]:
         if not input in machines:

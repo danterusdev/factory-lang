@@ -1,5 +1,0 @@
-machine test: passthrough 4
-machine baz(test): passthrough [0]
-machine bar(test): passthrough [0]
-machine foo(bar,baz): add [0] [1]
-product machine final(foo): print [0]
