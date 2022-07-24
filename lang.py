@@ -206,16 +206,20 @@ def run_machine(name):
 
             if done:
                 output = output_cache[name]
-                next_machine = machine_outputs[name]
-                if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
-                    machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
+                if name in machine_outputs:
+                    next_machine = machine_outputs[name]
+                    if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
+                        machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
 
-                if output == None:
-                    output = "nothing"
+                    if output == None:
+                        output = "nothing"
 
-                machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
-                del output_cache[name]
-                del dependencies[name]
+                    machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                    del output_cache[name]
+                    del dependencies[name]
+
+                if "product" in definition[3]:
+                    exiting = True
 
                 run_count[name] += 1
 
@@ -229,7 +233,7 @@ def run_machine(name):
 
             actual_inputs = [None] * definition[0]
             if "input" in definition[3]:
-                actual_inputs = [None] * len(args)
+                actual_inputs = [None] * (len(args) - 2)
                 for index, actual_input in enumerate(parse(args[2:])):
                     actual_inputs[index] = actual_input
 
@@ -253,10 +257,12 @@ def run_machine(name):
                 transformation_inputs = list(definition[2])
                 for index, input in enumerate(list(transformation_inputs)):
                     if isinstance(input, str) and input.startswith("["):
-                        #print(actual_inputs)
-                        #print(input)
-                        #print(int(input[1 : len(input) - 1]))
-                        transformation_inputs[index] = actual_inputs[int(input[1 : len(input) - 1])]
+                        index0 = int(input[1 : len(input) - 1])
+                        if index0 >= len(actual_inputs):
+                            print("Assembly line requires at least " + str(index0 + 1) + " parameters, given " + str(len(actual_inputs)))
+                            exit()
+
+                        transformation_inputs[index] = actual_inputs[index0]
 
                 output = run_transformation(name, definition[1], transformation_inputs)
 
