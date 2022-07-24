@@ -38,6 +38,23 @@ product_cap = 0
 machines_inputs = {}
 machine_outputs = {}
 
+def parse(raw):
+    parsed = []
+
+    for input in raw:
+        if input:
+            if input[0] == '"':
+                input = input[1 : len(input) - 1]
+            else:
+                try:
+                    int_value = int(input)
+                    input = int_value
+                except ValueError:
+                    pass
+        parsed.append(input)
+
+    return parsed
+
 for row, line in enumerate(spec_file.readlines()):
     if stage == Stage.CONFIGURATION:
         if line.startswith("#"):
@@ -99,35 +116,26 @@ for row, line in enumerate(spec_file.readlines()):
             transformation = line.split(':')[1].split(' ')[1].strip()
 
             inputs = []
+            #for character in arguments:#' '.join(line.split(':')[1].split(' ')[2:]):
 
-            inputs_raw = []
-            input_buffer = ""
+            parsed = []
+            raw = []
+            buffer = ""
             in_quotes = False
             for character in ' '.join(line.split(':')[1].split(' ')[2:]):
                 if character == '"':
                     in_quotes = not in_quotes
 
                 if character == ' ' and not in_quotes:
-                    inputs_raw.append(input_buffer)
-                    input_buffer = ""
+                    raw.append(buffer)
+                    buffer = ""
                 else:
-                    input_buffer += character
+                    buffer += character
 
-            if input_buffer:
-                inputs_raw.append(input_buffer)
+            if buffer:
+                raw.append(buffer)
 
-            for input in inputs_raw:
-                if input:
-                    if input[0] == '"':
-                        input = input[1 : len(input) - 1]
-                    else:
-                        try:
-                            int_value = int(input)
-                            input = int_value
-                        except ValueError:
-                            pass
-
-                    inputs.append(input)
+            inputs.extend(parse(raw))
 
             modifiers = []
 
@@ -183,7 +191,12 @@ def run_machine(name):
             run = False
 
             actual_inputs = [None] * definition[0]
-            if len(actual_inputs) > 0:
+            if "input" in definition[3]:
+                actual_inputs = [None] * len(args)
+                for index, actual_input in enumerate(parse(args[2:])):
+                    actual_inputs[index] = actual_input
+
+            if definition[0] > 0:
                 for index, input in enumerate(machine_inputs_available[name]):
                     if input:
                         is_valid = True
@@ -198,7 +211,6 @@ def run_machine(name):
                             break
             else:
                 run = True
-
 
             if run:
                 transformation_inputs = list(definition[2])

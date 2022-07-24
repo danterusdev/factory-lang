@@ -1,5 +1,4 @@
-machine test: add 1 0
+input machine test: add 1 [0]
 machine test2: add 1 1
 machine foo(test,test2): add [0] [1]
 product machine print_end(foo): print [0]
-#product machine test3(foo): add 1 1
