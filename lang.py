@@ -131,58 +131,70 @@ run_count = {}
 def run_transformation(id, inputs):
     match id:
         case "add":
-            return add(inputs[0], inputs[1])
+            return add_(inputs[0], inputs[1])
+        case "print":
+            return print_(inputs[0])
 
-def add(value1, value2):
+def add_(value1, value2):
     return value1 + value2
 
+def print_(value):
+    print(value)
+
 exiting = False
+output_uses = []
 
 def run_machine(name):
     global exiting
     run_count[name] = 0
     definition = machine_definitions[name]
     while not exiting:
-        run = False
+        if name in output_uses or not name in machine_outputs:
+            run = False
 
-        actual_inputs = [None] * definition[0]
-        if len(actual_inputs) > 0:
-            for index, input in enumerate(machine_inputs_available[name]):
-                if input:
-                    is_valid = True
-                    for input0 in input:
-                        if input0 == None:
-                            is_valid = False
+            actual_inputs = [None] * definition[0]
+            if len(actual_inputs) > 0:
+                for index, input in enumerate(machine_inputs_available[name]):
+                    if input:
+                        is_valid = True
+                        for input0 in input:
+                            if input0 == None:
+                                is_valid = False
 
-                    if is_valid:
-                        actual_inputs = machine_inputs_available[name][index]
-                        machine_inputs_available[name][index] = None
-                        run = True
-                        break
-        else:
-            run = True
-
-
-        if run:
-            transformation_inputs = list(definition[2])
-            for index, input in enumerate(list(transformation_inputs)):
-                if isinstance(input, str) and input.startswith("input_"):
-                    transformation_inputs[index] = actual_inputs[int(input[6:])]
-
-            output = run_transformation(definition[1], transformation_inputs)
-            if name in machine_outputs:
-                next_machine = machine_outputs[name]
-                if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
-                    machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
-
-                machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                        if is_valid:
+                            actual_inputs = machine_inputs_available[name][index]
+                            machine_inputs_available[name][index] = None
+                            run = True
+                            break
             else:
-                if run_count[name] == product_cap - 1:
-                    exiting = True
+                run = True
 
-                print(output)
 
-            run_count[name] += 1
+            if run:
+                transformation_inputs = list(definition[2])
+                for index, input in enumerate(list(transformation_inputs)):
+                    if isinstance(input, str) and input.startswith("["):
+                        transformation_inputs[index] = actual_inputs[int(input[1 : len(input) - 1])]
+
+                output = run_transformation(definition[1], transformation_inputs)
+                if name in machine_outputs:
+                    next_machine = machine_outputs[name]
+                    if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
+                        machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
+
+                    machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                else:
+                    if run_count[name] == product_cap - 1:
+                        exiting = True
+
+                    #print(output)
+
+                run_count[name] += 1
+            else:
+                output_uses.extend(machines_inputs[name])
+
+            if name in output_uses:
+                output_uses.remove(name)
 
 for machine in machines:
     machine_inputs_available[machine] = []
