@@ -31,7 +31,7 @@ class Stage(Enum):
     LAYOUT = 1
     MACHINES = 2
 
-stage = Stage.CONFIGURATION
+stage = Stage.MACHINES
 
 product_cap = 0
 
@@ -77,8 +77,8 @@ for row, line in enumerate(spec_file.readlines()):
     #                machine_output_directions[machine] = output_direction
     elif stage == Stage.MACHINES:
         line = line.replace('\n', '')
-        if line.startswith("machine "):
-            name = line[8 : line.index(':')]
+        if "machine " in line and not line.startswith('#'):
+            name = line[line.index("machine ") + 8 : line.index(':')]
             input_count = 0
             if '(' in name:
                 inputs = name[name.index('(') + 1 : name.index(')')].split(',')
@@ -91,23 +91,53 @@ for row, line in enumerate(spec_file.readlines()):
             else:
                 machines_inputs[name] = []
 
+            if name in machines:
+                print("Machine " + name + " has duplicate definitions!")
+                exit()
             machines.append(name)
 
             transformation = line.split(':')[1].split(' ')[1].strip()
 
             inputs = []
 
-            for input in line.split(':')[1].split(' ')[2:]:
+            inputs_raw = []
+            input_buffer = ""
+            in_quotes = False
+            for character in ' '.join(line.split(':')[1].split(' ')[2:]):
+                if character == '"':
+                    in_quotes = not in_quotes
+
+                if character == ' ' and not in_quotes:
+                    inputs_raw.append(input_buffer)
+                    input_buffer = ""
+                else:
+                    input_buffer += character
+
+            if input_buffer:
+                inputs_raw.append(input_buffer)
+
+            for input in inputs_raw:
                 if input:
-                    try:
-                        int_value = int(input)
-                        input = int_value
-                    except ValueError:
-                        pass
+                    if input[0] == '"':
+                        input = input[1 : len(input) - 1]
+                    else:
+                        try:
+                            int_value = int(input)
+                            input = int_value
+                        except ValueError:
+                            pass
 
                     inputs.append(input)
+
+            modifiers = []
+
+            for modifier in line.split(' '):
+                if modifier == "machine":
+                    break
+
+                modifiers.append(modifier)
                 
-            machine_definitions[name] = (input_count, transformation, inputs)
+            machine_definitions[name] = (input_count, transformation, inputs, modifiers)
 
 #for machine, direction in machine_output_directions.items():
 #    location = machine_locations[machine]
@@ -148,7 +178,7 @@ def run_machine(name):
     global exiting
     run_count[name] = 0
     definition = machine_definitions[name]
-    while not exiting:
+    if True:
         if name in output_uses or not name in machine_outputs:
             run = False
 
@@ -184,7 +214,7 @@ def run_machine(name):
 
                     machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
                 else:
-                    if run_count[name] == product_cap - 1:
+                    if "product" in definition[3]:
                         exiting = True
 
                     #print(output)
@@ -199,6 +229,6 @@ def run_machine(name):
 for machine in machines:
     machine_inputs_available[machine] = []
 
-for machine in machines:
-    thread = threading.Thread(target=run_machine, args=(machine,))
-    thread.start()
+while not exiting:
+    for machine in machines:
+        run_machine(machine)
