@@ -86,7 +86,9 @@ There are a couple other examples that I did not have enough time to document, b
 
 ### Tags
 `product`: denotes the final machine in an assembly line
+
 `input`: denotes that a machine takes input from the command line as opposed to from another machine
+
 `external`: denotes that a machine should be called only through transformations
 
 ### Transformations
