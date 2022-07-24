@@ -180,6 +180,8 @@ def repeat_(caller_machine, machine, count):
     if len(machines_inputs[machine]) > 0:
         list.append(machines_inputs[machine][0])
 
+    #print(list)
+
     dependencies[caller_machine] = list
 
 def if_(caller_machine, condition, machine):
@@ -238,16 +240,18 @@ def repeat_state_(caller_machine, inputs):
 
 def run_machine(name):
     global exiting
-    run_count[name] = 0
+    #run_count[name] = 0
     definition = machine_definitions[name]
     if True:
         if name in output_cache:
             done = True
             for dependency in dependencies[name]:
+                #print(machine_inputs_available[dependency])
                 for input in machine_inputs_available[dependency]:
                     if not input == None:
                         for thing in input:
                             if not thing == None:
+                                #print(dependency)
                                 done = False
 
             if done:
@@ -262,6 +266,7 @@ def run_machine(name):
                             output = "nothing"
 
                         machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                        #print("test")
                     del output_cache[name]
                     del dependencies[name]
 
@@ -300,12 +305,14 @@ def run_machine(name):
             else:
                 run = True
 
+            #print(name + " " + str(run))
+
             if run:
                 transformation_inputs = list(definition[2])
                 for index, input in enumerate(list(transformation_inputs)):
                     if isinstance(input, str) and input.startswith("["):
                         index0 = int(input[1 : len(input) - 1])
-                        if index0 >= len(actual_inputs):
+                        if index0 >= len(actual_inputs) and "input" in definition[3]:
                             print("Assembly line requires at least " + str(index0 + 1) + " parameters, given " + str(len(actual_inputs)))
                             exit()
 
@@ -334,16 +341,31 @@ def run_machine(name):
                             machine_inputs_available[next_machine][run_count[name]] = [None] * len(machines_inputs[next_machine])
 
                         machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                    
+                    #print(name)
                 else:
                     if "product" in definition[3]:
                         exiting = True
 
+                #print(run_count[name])
+                machine_inputs_available[name][run_count[name]] = None
+
                 run_count[name] += 1
+                #print(run_count[name])
             else:
-                output_uses.extend(machines_inputs[name])
+                add = True
+                for input in machines_inputs[name]:
+                    if input in output_uses:
+                        add = False 
+
+                if add:
+                    output_uses.extend(machines_inputs[name])
 
             if name in output_uses:
                 output_uses.remove(name)
+
+            #print(output_uses)
+            #print(name)
 
 has_product_machine = False
 
@@ -360,6 +382,8 @@ for machine in machines:
         if "external" in machine_definitions[input][3] and not "external" in machine_definitions[machine][3]:
             print("External cannot be used without transformation!")
             exit()
+
+    run_count[machine] = 0
 
 if not has_product_machine:
     print("No product machine defined!")
