@@ -1,0 +1,8 @@
+product_cap = 1
+##########
+test  - foo
+test2 /
+##########
+machine test: add 1 0
+machine test2: add 1 1
+machine foo(2): add input_0 input_1
