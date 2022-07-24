@@ -6,7 +6,8 @@ A programming language with a flow similar to an assembly line, where each machi
 Possibly in the future with more time I will add some more features to this language, specifically more transformations which drive the functionality of the language. I ended up being a little late to the start of the jam, and ended up only having about 24 hours to do everything.
 
 Originally build for [langjam/jam0003](https://github.com/langjam/jam0003)
-Final Commit For The Jam: 2b3cfe207716a06c6005f8f2de6f05f9c89b5d46
+
+Final Commit For The Jam: [here](https://github.com/danterusdev/factory-lang/tree/2b3cfe207716a06c6005f8f2de6f05f9c89b5d46)
 
 ## Building / Running
 The **Factory** interpreter runs on python, so all programs should be ran in this format:
@@ -90,14 +91,19 @@ There are a couple other examples that I did not have enough time to document, b
 
 ### Transformations
 `add <num1> <num2>`: add the two numbers and output the result
+
 `subtract <num1> <num2>`: add the second number from the first and output the result
+
 `equal <value1> <value2>`: check for equality between the values and output the result
+
 `print <value>`: print the value to stdout
+
 `passthrough <value>`: does nothing, only allows the use the use of a value without a transformation
+
 `repeat <machine> <count>`: runs `machine` `count` times
+
 `repeat_count <transformation> <args> <count> <initial>`: runs `transformation` `count` times with the given inputs, while keeping track of an internal state that can be accessed via `{0}` and `{-1]` (to access the previous state).
+
 `if <condition> <machine>`: runs `machine` if `condition` is true
+
 `nothing`: does literally nothing
-
-
-
