@@ -24,10 +24,6 @@ class Stage(Enum):
     LAYOUT = 1
     MACHINES = 2
 
-stage = Stage.MACHINES
-
-product_cap = 0
-
 machines_inputs = {}
 machine_outputs = {}
 
@@ -49,69 +45,84 @@ def parse(raw):
     return parsed
 
 for row, line in enumerate(spec_file.readlines()):
-    if stage == Stage.MACHINES:
-        line = line.replace('\n', '')
-        if "machine " in line and not line.startswith('#'):
-            name = line[line.index("machine ") + 8 : line.index(':')]
-            input_count = 0
-            if '(' in name:
-                inputs = name[name.index('(') + 1 : name.index(')')].split(',')
-                input_count = len(inputs)
-                name = name[0 : name.index('(')]
+    line = line.replace('\n', '')
+    if "machine " in line and not line.startswith('#'):
+        name = line[line.index("machine ") + 8 : line.index(':')]
+        input_count = 0
+        if '(' in name:
+            inputs = name[name.index('(') + 1 : name.index(')')].split(',')
+            input_count = len(inputs)
+            name = name[0 : name.index('(')]
 
-                machines_inputs[name] = list(inputs)
-                for input in inputs:
-                    machine_outputs[input] = name
-            else:
-                machines_inputs[name] = []
+            new_inputs = [string for string in inputs if string]
 
-            if name in machines:
-                print("Machine " + name + " has duplicate definitions!")
-                exit()
-            machines.append(name)
+            machines_inputs[name] = list(new_inputs)
+            for input in inputs:
+                machine_outputs[input] = name
+        else:
+            machines_inputs[name] = []
 
-            transformation = line.split(':')[1].split(' ')[1].strip()
+        if name in machines:
+            print("Machine " + name + " has duplicate definitions!")
+            exit()
+        machines.append(name)
 
-            inputs = []
+        transformation = line.split(':')[1].split(' ')[1].strip()
 
-            parsed = []
-            raw = []
-            buffer = ""
-            in_quotes = False
-            for character in ' '.join(line.split(':')[1].split(' ')[2:]):
-                if character == '"':
-                    in_quotes = not in_quotes
+        inputs = []
 
-                if character == ' ' and not in_quotes:
-                    raw.append(buffer)
-                    buffer = ""
-                else:
-                    buffer += character
+        parsed = []
+        raw = []
+        buffer = ""
+        in_quotes = False
+        for character in ' '.join(line.split(':')[1].split(' ')[2:]):
+            if character == '"':
+                in_quotes = not in_quotes
 
-            if buffer:
+            if character == ' ' and not in_quotes:
                 raw.append(buffer)
+                buffer = ""
+            else:
+                buffer += character
 
-            inputs.extend(parse(raw))
+        if buffer:
+            raw.append(buffer)
 
-            modifiers = []
+        inputs.extend(parse(raw))
 
-            for modifier in line.split(' '):
-                if modifier == "machine":
-                    break
+        modifiers = []
 
-                modifiers.append(modifier)
-                
-            machine_definitions[name] = (input_count, transformation, inputs, modifiers)
+        for modifier in line.split(' '):
+            if modifier == "machine":
+                break
+
+            modifiers.append(modifier)
+            
+        machine_definitions[name] = (input_count, transformation, inputs, modifiers)
 
 machine_inputs_available = {}
 run_count = {}
 
-def run_transformation(id, inputs):
+def run_transformation(machine, id, inputs):
     match id:
         case "add":
             return add_(inputs[0], inputs[1])
         case "print":
             return print_(inputs[0])
+        case "repeat":
+            return repeat_(machine, inputs[0], inputs[1])
+        case "repeat_state":
+            return repeat_state_(machine, inputs)
+        case "nothing":
+            return nothing_()
+        case thing:
+            print("Undefined transformation '" + thing + "'!")
+            exit()
+
+exiting = False
+output_uses = []
+dependencies = {}
+output_cache = {}
 
 def add_(value1, value2):
     return value1 + value2
@@ -119,14 +130,100 @@ def add_(value1, value2):
 def print_(value):
     print(value)
 
-exiting = False
-output_uses = []
+def nothing_():
+    pass
+
+def repeat_(caller_machine, machine, count):
+    if not machine in machines:
+        print("repeat not supported with transformations")
+        exit()
+
+    if not "external" in machine_definitions[machine][3]:
+        print("Machine called via transformation must be external!")
+        exit()
+
+    for i in range(0, count):
+        if len(machines_inputs[machine]) > 0:
+            machine_new = machines_inputs[machine][0]
+            output_uses.append(machine_new)
+            machine_inputs_available[machine_new].append([i])
+        else:
+            machine_inputs_available[machine].append([i])
+
+        output_uses.append(machine)
+
+    list = [machine]
+    if len(machines_inputs[machine]) > 0:
+        list.append(machines_inputs[machine][0])
+
+    dependencies[caller_machine] = list
+
+def repeat_state_(caller_machine, inputs):
+    inputs = list(inputs)
+    transformation = inputs[0]
+
+    if transformation in machines:
+        print("repeat_counter not supported with machines")
+        exit()
+
+    #print(transformation)
+    #print(inputs)
+    state_index = inputs.index("{0}")
+    state_previous_index = inputs.index("{-1}")
+    counter_index = -1
+    if "<0>" in inputs:
+        counter_index = inputs.index("<0>")
+
+    initial = inputs[len(inputs) - 1]
+    state = initial
+    state_previous = state
+
+    for i in range(0, inputs[len(inputs) - 2]):
+        inputs[state_index] = state
+        inputs[state_previous_index] = state_previous
+
+        if not counter_index == -1:
+            inputs[counter_index] = i
+
+        state_previous = state
+        state = run_transformation(caller_machine, inputs[0], inputs[1 : len(inputs) - 2])
+
+    return state
 
 def run_machine(name):
     global exiting
     run_count[name] = 0
     definition = machine_definitions[name]
     if True:
+        if name in output_cache:
+            done = True
+            for dependency in dependencies[name]:
+                for input in machine_inputs_available[dependency]:
+                    if not input == None:
+                        for thing in input:
+                            if not thing == None:
+                                done = False
+
+            if done:
+                output = output_cache[name]
+                next_machine = machine_outputs[name]
+                if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
+                    machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
+
+                if output == None:
+                    output = "nothing"
+
+                machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                del output_cache[name]
+                del dependencies[name]
+
+                run_count[name] += 1
+
+                if name in output_uses:
+                    output_uses.remove(name)
+            else:
+                return
+
         if name in output_uses or not name in machine_outputs:
             run = False
 
@@ -156,20 +253,32 @@ def run_machine(name):
                 transformation_inputs = list(definition[2])
                 for index, input in enumerate(list(transformation_inputs)):
                     if isinstance(input, str) and input.startswith("["):
+                        #print(actual_inputs)
+                        #print(input)
+                        #print(int(input[1 : len(input) - 1]))
                         transformation_inputs[index] = actual_inputs[int(input[1 : len(input) - 1])]
 
-                output = run_transformation(definition[1], transformation_inputs)
+                output = run_transformation(name, definition[1], transformation_inputs)
+
+                if name in dependencies:
+                    output_cache[name] = output
+                    return
+
                 if name in machine_outputs:
                     next_machine = machine_outputs[name]
                     if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
                         machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
 
+                    if output == None:
+                        output = "nothing"
+
+                    if machine_inputs_available[next_machine][run_count[name]] == None:
+                        machine_inputs_available[next_machine][run_count[name]] = [None] * len(machines_inputs[next_machine])
+
                     machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
                 else:
                     if "product" in definition[3]:
                         exiting = True
-
-                    #print(output)
 
                 run_count[name] += 1
             else:
@@ -178,8 +287,21 @@ def run_machine(name):
             if name in output_uses:
                 output_uses.remove(name)
 
+has_product_machine = False
+
 for machine in machines:
     machine_inputs_available[machine] = []
+    if "product" in machine_definitions[machine][3]:
+        has_product_machine = True
+
+    for input in machines_inputs[machine]:
+        if "external" in machine_definitions[input][3] and not "external" in machine_definitions[machine][3]:
+            print("External cannot be used without transformation!")
+            exit()
+
+if not has_product_machine:
+    print("No product machine defined!")
+    exit()
 
 while not exiting:
     for machine in machines:
