@@ -1,17 +1,10 @@
 import sys
-import threading
 from enum import Enum
-
-#test = []
-#test.append(None)
-#test.append(None)
-#print(len(test))
-#test[1] = None
 
 args = sys.argv
 
 if len(sys.argv) < 2:
-    print("Input spec file path!")
+    print("Input assembly line file path!")
     sys.exit()
 
 spec_file = sys.argv[1]
@@ -56,43 +49,7 @@ def parse(raw):
     return parsed
 
 for row, line in enumerate(spec_file.readlines()):
-    if stage == Stage.CONFIGURATION:
-        if line.startswith("#"):
-            stage = Stage.MACHINES
-            continue
-
-        split = line.split('=')
-        id = split[0].strip()
-
-        if id == "product_cap":
-            product_cap = int(split[1].strip())
-
-    #elif stage == Stage.LAYOUT:
-    #    if line.startswith("#"):
-    #        stage = Stage.MACHINES
-    #        continue
-
-    #    line = line.replace('\n', '')
-    #    for column, machine in enumerate(line.replace('/', '-').split('-')):
-    #        machine = machine.strip()
-    #        if machine:
-    #            machine_locations[machine] = (row, column)
-    #            machine_locations_reversed[(row, column)] = machine
-    #            split = line.split(' ')
-    #            index = split.index(machine) + 1
-    #            output_direction = None
-    #            while not output_direction:
-    #                if index < len(split):
-    #                    if split[index].strip():
-    #                        output_direction = split[index]
-    #                    else:
-    #                        index += 1
-    #                else:
-    #                    output_direction = 'X'
-
-    #            if not output_direction == 'X':
-    #                machine_output_directions[machine] = output_direction
-    elif stage == Stage.MACHINES:
+    if stage == Stage.MACHINES:
         line = line.replace('\n', '')
         if "machine " in line and not line.startswith('#'):
             name = line[line.index("machine ") + 8 : line.index(':')]
@@ -116,7 +73,6 @@ for row, line in enumerate(spec_file.readlines()):
             transformation = line.split(':')[1].split(' ')[1].strip()
 
             inputs = []
-            #for character in arguments:#' '.join(line.split(':')[1].split(' ')[2:]):
 
             parsed = []
             raw = []
@@ -146,22 +102,6 @@ for row, line in enumerate(spec_file.readlines()):
                 modifiers.append(modifier)
                 
             machine_definitions[name] = (input_count, transformation, inputs, modifiers)
-
-#for machine, direction in machine_output_directions.items():
-#    location = machine_locations[machine]
-#    reciever_machine_location = None
-#    if direction == '-':
-#        reciever_machine_location = (location[0], location[1] + 1)
-#    elif direction == '/':
-#        reciever_machine_location = (location[0] - 1, location[1] + 1)
-#
-#    reciever_machine = machine_locations_reversed[reciever_machine_location]
-#
-#    if not reciever_machine in machines_inputs:
-#        machines_inputs[reciever_machine] = []
-#
-#    machines_inputs[reciever_machine].append(machine)
-#    machine_outputs[machine] = reciever_machine
 
 machine_inputs_available = {}
 run_count = {}
