@@ -1,4 +1,5 @@
-input machine test: add 1 [0]
-machine test2: add 1 1
-machine foo(test,test2): add [0] [1]
-product machine print_end(foo): print [0]
+machine test: passthrough 4
+machine baz(test): passthrough [0]
+machine bar(test): passthrough [0]
+machine foo(bar,baz): add [0] [1]
+product machine final(foo): print [0]

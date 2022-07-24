@@ -54,11 +54,18 @@ for row, line in enumerate(spec_file.readlines()):
             input_count = len(inputs)
             name = name[0 : name.index('(')]
 
-            new_inputs = [string for string in inputs if string]
+            new_inputs = [string.strip() for string in inputs if string]
+
+            if len(new_inputs) == 0:
+                print("Machine " + name + " has empty ()!")
+                exit()
 
             machines_inputs[name] = list(new_inputs)
-            for input in inputs:
-                machine_outputs[input] = name
+            for input in new_inputs:
+                if not input in machine_outputs:
+                    machine_outputs[input] = []
+
+                machine_outputs[input].append(name)
         else:
             machines_inputs[name] = []
 
@@ -107,8 +114,12 @@ def run_transformation(machine, id, inputs):
     match id:
         case "add":
             return add_(inputs[0], inputs[1])
+        case "subtract":
+            return subtract_(inputs[0], inputs[1])
         case "print":
             return print_(inputs[0])
+        case "passthrough":
+            return passthrough_(inputs[0])
         case "repeat":
             return repeat_(machine, inputs[0], inputs[1])
         case "repeat_state":
@@ -127,8 +138,14 @@ output_cache = {}
 def add_(value1, value2):
     return value1 + value2
 
+def subtract_(value1, value2):
+    return value1 - value2
+
 def print_(value):
     print(value)
+
+def passthrough_(value):
+    return value
 
 def nothing_():
     pass
@@ -144,9 +161,9 @@ def repeat_(caller_machine, machine, count):
 
     for i in range(0, count):
         if len(machines_inputs[machine]) > 0:
-            machine_new = machines_inputs[machine][0]
-            output_uses.append(machine_new)
-            machine_inputs_available[machine_new].append([i])
+            for machine_new in machines_inputs[machine]:
+                output_uses.append(machine_new)
+                machine_inputs_available[machine_new].append([i])
         else:
             machine_inputs_available[machine].append([i])
 
@@ -207,14 +224,15 @@ def run_machine(name):
             if done:
                 output = output_cache[name]
                 if name in machine_outputs:
-                    next_machine = machine_outputs[name]
-                    if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
-                        machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
+                    next_machines = machine_outputs[name]
+                    for next_machine in next_machines:
+                        if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
+                            machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
 
-                    if output == None:
-                        output = "nothing"
+                        if output == None:
+                            output = "nothing"
 
-                    machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                        machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
                     del output_cache[name]
                     del dependencies[name]
 
@@ -264,24 +282,35 @@ def run_machine(name):
 
                         transformation_inputs[index] = actual_inputs[index0]
 
-                output = run_transformation(name, definition[1], transformation_inputs)
+                is_transformation = True
+
+                #try:
+                    #int(transformation_inputs[1])
+                    #is_transformation = False
+                #except ValueError:
+                    #3pass
+
+                output = None
+                if is_transformation:
+                    output = run_transformation(name, definition[1], transformation_inputs)
 
                 if name in dependencies:
                     output_cache[name] = output
                     return
 
                 if name in machine_outputs:
-                    next_machine = machine_outputs[name]
-                    if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
-                        machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
+                    next_machines = machine_outputs[name]
+                    for next_machine in next_machines:
+                        if len(machine_inputs_available[next_machine]) < run_count[name] + 1:
+                            machine_inputs_available[next_machine].append([None] * machine_definitions[next_machine][0])
 
-                    if output == None:
-                        output = "nothing"
+                        if output == None:
+                            output = "nothing"
 
-                    if machine_inputs_available[next_machine][run_count[name]] == None:
-                        machine_inputs_available[next_machine][run_count[name]] = [None] * len(machines_inputs[next_machine])
+                        if machine_inputs_available[next_machine][run_count[name]] == None:
+                            machine_inputs_available[next_machine][run_count[name]] = [None] * len(machines_inputs[next_machine])
 
-                    machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
+                        machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
                 else:
                     if "product" in definition[3]:
                         exiting = True
@@ -300,7 +329,16 @@ for machine in machines:
     if "product" in machine_definitions[machine][3]:
         has_product_machine = True
 
+    #if "external" in machine_definitions[machine][3]:
+        #if len(machines_inputs[machine]) > 1:
+            #print("External machines cannot have more than one dependency")
+            #exit()
+
     for input in machines_inputs[machine]:
+        if not input in machines:
+            print("Machine " + input + " not defined!")
+            exit()
+
         if "external" in machine_definitions[input][3] and not "external" in machine_definitions[machine][3]:
             print("External cannot be used without transformation!")
             exit()
