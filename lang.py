@@ -17,6 +17,7 @@ if len(sys.argv) < 2:
 spec_file = sys.argv[1]
 spec_file = open(spec_file)
 
+machines = []
 machine_locations = {}
 machine_locations_reversed = {}
 machine_output_directions = {}
@@ -34,10 +35,13 @@ stage = Stage.CONFIGURATION
 
 product_cap = 0
 
+machines_inputs = {}
+machine_outputs = {}
+
 for row, line in enumerate(spec_file.readlines()):
     if stage == Stage.CONFIGURATION:
         if line.startswith("#"):
-            stage = Stage.LAYOUT
+            stage = Stage.MACHINES
             continue
 
         split = line.split('=')
@@ -46,39 +50,48 @@ for row, line in enumerate(spec_file.readlines()):
         if id == "product_cap":
             product_cap = int(split[1].strip())
 
-    elif stage == Stage.LAYOUT:
-        if line.startswith("#"):
-            stage = Stage.MACHINES
-            continue
+    #elif stage == Stage.LAYOUT:
+    #    if line.startswith("#"):
+    #        stage = Stage.MACHINES
+    #        continue
 
-        line = line.replace('\n', '')
-        for column, machine in enumerate(line.replace('/', '-').split('-')):
-            machine = machine.strip()
-            if machine:
-                machine_locations[machine] = (row, column)
-                machine_locations_reversed[(row, column)] = machine
-                split = line.split(' ')
-                index = split.index(machine) + 1
-                output_direction = None
-                while not output_direction:
-                    if index < len(split):
-                        if split[index].strip():
-                            output_direction = split[index]
-                        else:
-                            index += 1
-                    else:
-                        output_direction = 'X'
+    #    line = line.replace('\n', '')
+    #    for column, machine in enumerate(line.replace('/', '-').split('-')):
+    #        machine = machine.strip()
+    #        if machine:
+    #            machine_locations[machine] = (row, column)
+    #            machine_locations_reversed[(row, column)] = machine
+    #            split = line.split(' ')
+    #            index = split.index(machine) + 1
+    #            output_direction = None
+    #            while not output_direction:
+    #                if index < len(split):
+    #                    if split[index].strip():
+    #                        output_direction = split[index]
+    #                    else:
+    #                        index += 1
+    #                else:
+    #                    output_direction = 'X'
 
-                if not output_direction == 'X':
-                    machine_output_directions[machine] = output_direction
+    #            if not output_direction == 'X':
+    #                machine_output_directions[machine] = output_direction
     elif stage == Stage.MACHINES:
         line = line.replace('\n', '')
         if line.startswith("machine "):
             name = line[8 : line.index(':')]
-            arg_count = 0
+            input_count = 0
             if '(' in name:
-                arg_count = int(name[name.index('(') + 1 : name.index(')')])
+                inputs = name[name.index('(') + 1 : name.index(')')].split(',')
+                input_count = len(inputs)
                 name = name[0 : name.index('(')]
+
+                machines_inputs[name] = list(inputs)
+                for input in inputs:
+                    machine_outputs[input] = name
+            else:
+                machines_inputs[name] = []
+
+            machines.append(name)
 
             transformation = line.split(':')[1].split(' ')[1].strip()
 
@@ -94,26 +107,23 @@ for row, line in enumerate(spec_file.readlines()):
 
                     inputs.append(input)
                 
-            machine_definitions[name] = (arg_count, transformation, inputs)
+            machine_definitions[name] = (input_count, transformation, inputs)
 
-machines_inputs = {}
-machine_outputs = {}
-
-for machine, direction in machine_output_directions.items():
-    location = machine_locations[machine]
-    reciever_machine_location = None
-    if direction == '-':
-        reciever_machine_location = (location[0], location[1] + 1)
-    elif direction == '/':
-        reciever_machine_location = (location[0] - 1, location[1] + 1)
-
-    reciever_machine = machine_locations_reversed[reciever_machine_location]
-
-    if not reciever_machine in machines_inputs:
-        machines_inputs[reciever_machine] = []
-
-    machines_inputs[reciever_machine].append(machine)
-    machine_outputs[machine] = reciever_machine
+#for machine, direction in machine_output_directions.items():
+#    location = machine_locations[machine]
+#    reciever_machine_location = None
+#    if direction == '-':
+#        reciever_machine_location = (location[0], location[1] + 1)
+#    elif direction == '/':
+#        reciever_machine_location = (location[0] - 1, location[1] + 1)
+#
+#    reciever_machine = machine_locations_reversed[reciever_machine_location]
+#
+#    if not reciever_machine in machines_inputs:
+#        machines_inputs[reciever_machine] = []
+#
+#    machines_inputs[reciever_machine].append(machine)
+#    machine_outputs[machine] = reciever_machine
 
 machine_inputs_available = {}
 run_count = {}
@@ -174,9 +184,9 @@ def run_machine(name):
 
             run_count[name] += 1
 
-for machine in machine_locations:
+for machine in machines:
     machine_inputs_available[machine] = []
 
-for machine in machine_locations:
+for machine in machines:
     thread = threading.Thread(target=run_machine, args=(machine,))
     thread.start()
