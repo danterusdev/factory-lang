@@ -1,4 +1,4 @@
-external machine true: print "Value is 1"
+external machine is_true: print "Value is 1"
 input machine parse_input: equal [0] 1
-machine check_if(parse_input): if [0] true
+machine check_if(parse_input): if [0] is_true
 product machine final(check_if): nothing

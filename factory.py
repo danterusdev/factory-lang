@@ -1,5 +1,4 @@
 import sys
-from enum import Enum
 
 args = sys.argv
 
@@ -19,13 +18,12 @@ searching_machines = False
 
 machine_definitions = {}
 
-class Stage(Enum):
-    CONFIGURATION = 0
-    LAYOUT = 1
-    MACHINES = 2
-
 machines_inputs = {}
 machine_outputs = {}
+
+class Item():
+    def __init__(self, value):
+        self.value = value
 
 def parse(raw):
     parsed = []
@@ -34,12 +32,20 @@ def parse(raw):
         if input:
             if input[0] == '"':
                 input = input[1 : len(input) - 1]
+            elif input[0] == '[':
+                pass
+            elif input[0] == '{':
+                pass
+            elif input == "true" or input == "false":
+                input = input == "true"
             else:
                 try:
                     int_value = int(input)
                     input = int_value
                 except ValueError:
+                    input = Item(input)
                     pass
+
         parsed.append(input)
 
     return parsed
@@ -123,11 +129,11 @@ def run_transformation(machine, id, inputs):
         case "passthrough":
             return passthrough_(inputs[0])
         case "repeat":
-            return repeat_(machine, inputs[0], inputs[1])
+            return repeat_(machine, inputs[0], inputs[1:])
         case "repeat_state":
             return repeat_state_(machine, inputs)
         case "if":
-            return if_(machine, inputs[0], inputs[1])
+            return if_(machine, inputs[0], inputs[1], inputs[2:])
         case "nothing":
             return nothing_()
         case thing:
@@ -136,7 +142,7 @@ def run_transformation(machine, id, inputs):
 
 exiting = False
 output_uses = []
-dependencies = {}
+inputs = {}
 output_cache = {}
 
 def add_(value1, value2):
@@ -149,6 +155,10 @@ def equal_(value1, value2):
     return value1 == value2
 
 def print_(value):
+    if isinstance(value, Item):
+        print("Attempted to print item with value " + str(value.value) + "!")
+        exit()
+
     print(value)
 
 def passthrough_(value):
@@ -157,53 +167,56 @@ def passthrough_(value):
 def nothing_():
     pass
 
-def repeat_(caller_machine, machine, count):
+def repeat_(caller_machine, machine, repeat_inputs):
+    count = repeat_inputs[-1]
+    machine = machine.value
     if not machine in machines:
-        print("repeat not supported with transformations")
-        exit()
+        for i in range(0, count):
+            run_transformation(caller_machine, machine, repeat_inputs[0 : len(repeat_inputs) - 1])
+    else:
+        if not "external" in machine_definitions[machine][3]:
+            print("Machine called via transformation must be external!")
+            exit()
 
-    if not "external" in machine_definitions[machine][3]:
-        print("Machine called via transformation must be external!")
-        exit()
+        for i in range(0, count):
+            if len(machines_inputs[machine]) > 0:
+                for machine_new in machines_inputs[machine]:
+                    output_uses.append(machine_new)
+                    machine_inputs_available[machine_new].append([i])
+            else:
+                machine_inputs_available[machine].append([i])
 
-    for i in range(0, count):
+            output_uses.append(machine)
+
+        list = [machine]
         if len(machines_inputs[machine]) > 0:
-            for machine_new in machines_inputs[machine]:
-                output_uses.append(machine_new)
-                machine_inputs_available[machine_new].append([i])
-        else:
-            machine_inputs_available[machine].append([i])
+            list.append(machines_inputs[machine][0])
 
-        output_uses.append(machine)
+        inputs[caller_machine] = list
 
-    list = [machine]
-    if len(machines_inputs[machine]) > 0:
-        list.append(machines_inputs[machine][0])
-
-    dependencies[caller_machine] = list
-
-def if_(caller_machine, condition, machine):
+def if_(caller_machine, condition, machine, if_inputs):
+    machine = machine.value
     if not machine in machines:
-        print("repeat not supported with transformations")
-        exit()
+        if condition:
+            run_transformation(caller_machine, machine, if_inputs)
+    else:
+        if not "external" in machine_definitions[machine][3]:
+            print("Machine called via transformation must be external!")
+            exit()
 
-    if not "external" in machine_definitions[machine][3]:
-        print("Machine called via transformation must be external!")
-        exit()
+        if condition:
+            if len(machines_inputs[machine]) > 0:
+                for machine_new in machines_inputs[machine]:
+                    output_uses.append(machine_new)
 
-    if condition:
+            machine_inputs_available[machine].append([0])
+            output_uses.append(machine)
+
+        list = [machine]
         if len(machines_inputs[machine]) > 0:
-            for machine_new in machines_inputs[machine]:
-                output_uses.append(machine_new)
+            list.append(machines_inputs[machine][0])
 
-        machine_inputs_available[machine].append([0])
-        output_uses.append(machine)
-
-    list = [machine]
-    if len(machines_inputs[machine]) > 0:
-        list.append(machines_inputs[machine][0])
-
-    dependencies[caller_machine] = list
+        inputs[caller_machine] = list
 
 def repeat_state_(caller_machine, inputs):
     inputs = list(inputs)
@@ -231,7 +244,7 @@ def repeat_state_(caller_machine, inputs):
             inputs[counter_index] = i
 
         state_previous = state
-        state = run_transformation(caller_machine, inputs[0], inputs[1 : len(inputs) - 2])
+        state = run_transformation(caller_machine, inputs[0].value, inputs[1 : len(inputs) - 2])
 
     return state
 
@@ -242,8 +255,8 @@ def run_machine(name):
     if True:
         if name in output_cache:
             done = True
-            for dependency in dependencies[name]:
-                for input in machine_inputs_available[dependency]:
+            for input_machine in inputs[name]:
+                for input in machine_inputs_available[input_machine]:
                     if not input == None:
                         for thing in input:
                             if not thing == None:
@@ -262,7 +275,7 @@ def run_machine(name):
 
                         machine_inputs_available[next_machine][run_count[name]][machines_inputs[next_machine].index(name)] = output
                     del output_cache[name]
-                    del dependencies[name]
+                    del inputs[name]
 
                 if "product" in definition[3]:
                     exiting = True
@@ -280,7 +293,21 @@ def run_machine(name):
             actual_inputs = [None] * definition[0]
             if "input" in definition[3]:
                 actual_inputs = [None] * (len(args) - 2)
-                for index, actual_input in enumerate(parse(args[2:])):
+                args_new = []
+
+                for arg in args:
+                    if arg == "true" or arg == "false":
+                        arg = arg == "true"
+                    else:
+                        try:
+                            arg = int(arg)
+                        except ValueError:
+                            arg = '"' + arg + '"'
+                            pass
+
+                    args_new.append(arg)
+
+                for index, actual_input in enumerate(parse(args_new[2:])):
                     actual_inputs[index] = actual_input
 
             if definition[0] > 0 or "external" in machine_definitions[name][3]:
@@ -308,6 +335,10 @@ def run_machine(name):
                             print("Assembly line requires at least " + str(index0 + 1) + " parameters, given " + str(len(actual_inputs)))
                             exit()
 
+                        if index0 >= len(actual_inputs):
+                            print("Attempted to access input " + str(index0) + " from " + name + ", out of bounds!")
+                            exit()
+
                         transformation_inputs[index] = actual_inputs[index0]
 
                 is_transformation = True
@@ -316,7 +347,7 @@ def run_machine(name):
                 if is_transformation:
                     output = run_transformation(name, definition[1], transformation_inputs)
 
-                if name in dependencies:
+                if name in inputs:
                     output_cache[name] = output
                     return
 

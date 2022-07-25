@@ -1,3 +1,2 @@
-external machine loop: print 0
-machine fib: repeat loop 5
-product machine done(fib): nothing
+external machine loop: print [0]
+product machine main: repeat loop 5
